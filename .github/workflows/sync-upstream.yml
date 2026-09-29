@@ -1,0 +1,32 @@
+name: Sync upstream
+
+on:
+  # 每天北京时间／新加坡时间 00:00（UTC 16:00）同步；GitHub 调度可能有延迟。
+  schedule:
+    - cron: '0 16 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream-main
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    # 仅在 fork 仓库运行，父仓库由 GitHub 自动识别。
+    if: ${{ github.event.repository.fork == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Merge upstream into main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        # 使用 GitHub 的 fork 同步接口，保留本仓库的独立提交。
+        # 合并冲突时接口返回错误并使任务失败，不强制覆盖代码。
+        # 仅同步 main 分支，不同步标签，也不触发 Cloudflare 部署。
+        run: |
+          gh api --method POST "repos/${GH_REPO}/merge-upstream" \
+            -f branch=main
